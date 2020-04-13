@@ -48,8 +48,12 @@ module.exports = class UnifiEvents extends EventEmitter {
   }
 
   _login (listen) {
-    return this.rp.post(`${this.controller.href}api/login`, {
+    this.jar._jar.removeAllCookiesSync();
+    return this.rp.post(`${this.controller.href}api/auth/login`, {
       resolveWithFullResponse: true,
+      headers: {
+        'Referer': `${this.controller.href}login`,
+      },
       json: {
         username: this.opts.username,
         password: this.opts.password,
@@ -59,7 +63,9 @@ module.exports = class UnifiEvents extends EventEmitter {
       .then(() => {
         if (this.socket) {
         // inject new cookie into the ws handler
-          this.socket.options.headers.Cookie = this.jar.getCookieString(this.controller.href)
+          this.socket.options.headers.Cookie = this.jar.getCookieString(this.controller.href, {
+            allPaths: true
+          })
         }
       })
       .catch((e) => {
@@ -68,13 +74,15 @@ module.exports = class UnifiEvents extends EventEmitter {
   }
 
   _listen () {
-    this.socket = new WebSocket(`wss://${this.controller.host}/wss/s/${this.opts.site}/events`, {
+    this.socket = new WebSocket(`wss://${this.controller.host}/proxy/network/wss/s/${this.opts.site}/events`, {
       options: {
         perMessageDeflate: false,
         rejectUnauthorized: this.opts.rejectUnauthorized,
         headers: {
           'User-Agent': this.userAgent,
-          'Cookie': this.jar.getCookieString(this.controller.href)
+          'Cookie': this.jar.getCookieString(this.controller.href, {
+            allPaths: true
+          })
         }
       },
       beforeConnect: this._ensureLoggedIn.bind(this)
@@ -104,7 +112,7 @@ module.exports = class UnifiEvents extends EventEmitter {
   }
 
   _ensureLoggedIn () {
-    return this.rp.get(`${this.controller.href}api/self`)
+    return this.rp.get(`${this.controller.href}api/users/self`)
       .catch(() => {
         return this._login()
       })
@@ -113,7 +121,7 @@ module.exports = class UnifiEvents extends EventEmitter {
   getClients () {
     return this._ensureLoggedIn()
       .then(() => {
-        return this.rp.get(`${this.controller.href}api/s/${this.opts.site}/stat/sta`, {
+        return this.rp.get(`${this.controller.href}proxy/network/api/s/${this.opts.site}/stat/sta`, {
           json: true
         })
       })
@@ -122,7 +130,7 @@ module.exports = class UnifiEvents extends EventEmitter {
   getClient (mac) {
     return this._ensureLoggedIn()
       .then(() => {
-        return this.rp.get(`${this.controller.href}api/s/${this.opts.site}/stat/user/${mac}`, {
+        return this.rp.get(`${this.controller.href}proxy/network/api/s/${this.opts.site}/stat/user/${mac}`, {
           json: true
         })
           .then((data) => {
@@ -134,7 +142,7 @@ module.exports = class UnifiEvents extends EventEmitter {
   getAp (mac) {
     return this._ensureLoggedIn()
       .then(() => {
-        return this.rp.get(`${this.controller.href}api/s/${this.opts.site}/stat/device/${mac}`, {
+        return this.rp.get(`${this.controller.href}proxy/network/api/s/${this.opts.site}/stat/device/${mac}`, {
           json: true
         })
           .then((data) => {
@@ -146,7 +154,7 @@ module.exports = class UnifiEvents extends EventEmitter {
   getSites () {
     return this._ensureLoggedIn()
       .then(() => {
-        return this.rp.get(`${this.controller.href}api/self/sites`, {
+        return this.rp.get(`${this.controller.href}proxy/network/api/self/sites`, {
           json: true
         })
       })
